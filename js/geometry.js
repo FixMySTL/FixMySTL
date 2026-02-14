@@ -62,6 +62,53 @@ const GEOMETRY = (function () {
   }
 
   /**
+   * Compute center of bounding box.
+   * @param {{ min, max }} bbox
+   * @returns {{ x, y, z }}
+   */
+  function computeCenter(bbox) {
+    return {
+      x: (bbox.min.x + bbox.max.x) / 2,
+      y: (bbox.min.y + bbox.max.y) / 2,
+      z: (bbox.min.z + bbox.max.z) / 2
+    };
+  }
+
+  /**
+   * Translate vertices in place (returns new array).
+   * @param {Float32Array} vertices
+   * @param {number} tx
+   * @param {number} ty
+   * @param {number} tz
+   * @returns {Float32Array}
+   */
+  function translateVertices(vertices, tx, ty, tz) {
+    const len = vertices.length;
+    const out = new Float32Array(len);
+    for (let i = 0; i < len; i += 3) {
+      out[i] = vertices[i] + tx;
+      out[i + 1] = vertices[i + 1] + ty;
+      out[i + 2] = vertices[i + 2] + tz;
+    }
+    return out;
+  }
+
+  /**
+   * Apply scale then optional translation. originalVertices unchanged.
+   * @param {Float32Array} originalVertices
+   * @param {number} scaleFactor
+   * @param {number} tx
+   * @param {number} ty
+   * @param {number} tz
+   * @returns {Float32Array}
+   */
+  function applyTransform(originalVertices, scaleFactor, tx, ty, tz) {
+    const scaled = scaleVertices(originalVertices, scaleFactor);
+    if (tx === 0 && ty === 0 && tz === 0) return scaled;
+    return translateVertices(scaled, tx, ty, tz);
+  }
+
+  /**
    * Get triangle count from vertices length.
    * @param {Float32Array} vertices
    * @returns {number}
@@ -70,7 +117,7 @@ const GEOMETRY = (function () {
     return Math.floor(vertices.length / 9);
   }
 
-  const api = { computeBbox, scaleVertices, getTriangleCount };
+  const api = { computeBbox, scaleVertices, computeCenter, translateVertices, applyTransform, getTriangleCount };
   window.GEOMETRY = api;
   return api;
 })();

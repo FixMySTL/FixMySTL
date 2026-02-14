@@ -10,6 +10,7 @@ const UI = (function () {
   const SCALE_MM_TO_INCH = 1 / 25.4;
 
   let elements = {};
+  let bannerDismissed = false;
 
   function formatBytes(bytes) {
     if (bytes < 1024) return bytes + ' B';
@@ -32,7 +33,7 @@ const UI = (function () {
     const app = createElement('div', 'app');
 
     const header = createElement('header', 'header');
-    header.innerHTML = '<h1>FixMySTL</h1><p class="tagline">Fix scale. Preview. Download.</p>';
+    header.innerHTML = '<h1>Fix STL Scale Online</h1><p class="tagline">Fix scale. Preview. Download.</p>';
     app.appendChild(header);
 
     const dropzone = createElement('div', 'dropzone');
@@ -47,7 +48,20 @@ const UI = (function () {
     cards.id = 'cards';
 
     const modelCard = createElement('div', 'card');
-    modelCard.innerHTML = '<h2>Model Info</h2><div class="stats" id="model-stats"></div>';
+    modelCard.innerHTML = `
+      <h2>Model Info</h2>
+      <div class="unit-toggle">
+        <span>Display units:</span>
+        <label><input type="radio" name="display-unit" value="mm" checked> mm</label>
+        <label><input type="radio" name="display-unit" value="inch"> inch</label>
+      </div>
+      <label class="bbox-toggle">
+        <input type="checkbox" id="bboxToggle">
+        <span>Show bounding box</span>
+      </label>
+      <div class="stats" id="model-stats"></div>
+      <div class="size-sanity hidden" id="size-sanity"></div>
+    `;
     cards.appendChild(modelCard);
 
     const previewCard = createElement('div', 'card');
@@ -57,18 +71,29 @@ const UI = (function () {
     const scaleCard = createElement('div', 'card');
     scaleCard.innerHTML = `
       <h2>Scale</h2>
+      <div class="suggestion-banner hidden" id="suggestion-banner">
+        <span class="suggestion-text" id="suggestion-text"></span>
+        <button type="button" class="btn btn-scale suggestion-apply" id="btn-suggestion-apply"></button>
+        <button type="button" class="suggestion-dismiss" id="suggestion-dismiss" aria-label="Dismiss">×</button>
+      </div>
       <div class="scale-controls">
         <div class="scale-buttons">
           <button type="button" class="btn btn-scale" id="btn-inch-to-mm">Inch → mm ×25.4</button>
           <button type="button" class="btn btn-scale" id="btn-mm-to-inch">mm → Inch ÷25.4</button>
         </div>
+        <p class="scale-hint">Too small in slicer? Try ×25.4. Too big? Try ÷25.4.</p>
         <div class="custom-scale">
           <label>Custom factor:</label>
           <input type="number" id="custom-factor" step="0.01" value="1" placeholder="1.0">
           <button type="button" class="btn btn-apply" id="btn-apply-scale">Apply</button>
         </div>
+        <label class="center-toggle">
+          <input type="checkbox" id="center-model" value="1">
+          <span>Center model (move to origin)</span>
+        </label>
         <div class="actions">
           <button type="button" class="btn btn-secondary" id="btn-reset">Reset to original</button>
+          <button type="button" class="btn btn-secondary" id="btn-fit-view">Fit view</button>
           <button type="button" class="btn btn-download" id="btn-download" disabled>Download corrected STL</button>
         </div>
       </div>
@@ -83,6 +108,7 @@ const UI = (function () {
       message,
       cards,
       modelStats: document.getElementById('model-stats'),
+      sizeSanity: document.getElementById('size-sanity'),
       previewContainer: document.getElementById('preview-container'),
       btnChoose: document.getElementById('btn-choose'),
       fileInput: document.getElementById('file-input'),
@@ -91,8 +117,22 @@ const UI = (function () {
       customFactor: document.getElementById('custom-factor'),
       btnApplyScale: document.getElementById('btn-apply-scale'),
       btnReset: document.getElementById('btn-reset'),
-      btnDownload: document.getElementById('btn-download')
+      btnFitView: document.getElementById('btn-fit-view'),
+      btnDownload: document.getElementById('btn-download'),
+      suggestionBanner: document.getElementById('suggestion-banner'),
+      suggestionText: document.getElementById('suggestion-text'),
+      btnSuggestionApply: document.getElementById('btn-suggestion-apply'),
+      suggestionDismiss: document.getElementById('suggestion-dismiss'),
+      centerModel: document.getElementById('center-model'),
+      unitMm: document.querySelector('input[name="display-unit"][value="mm"]'),
+      unitInch: document.querySelector('input[name="display-unit"][value="inch"]'),
+      bboxToggle: document.getElementById('bboxToggle')
     };
+
+    elements.suggestionDismiss.addEventListener('click', function () {
+      bannerDismissed = true;
+      elements.suggestionBanner.classList.add('hidden');
+    });
 
     return elements;
   }
@@ -124,7 +164,11 @@ const UI = (function () {
     if (!el) return;
 
     const bbox = data.bbox;
-    const fmt = (v) => (v != null ? Number(v).toFixed(2) : '—');
+    const displayUnit = data.displayUnit || 'mm';
+    const toInch = (v) => (v != null ? (Number(v) / 25.4).toFixed(3) : '—');
+    const toMm = (v) => (v != null ? Number(v).toFixed(2) : '—');
+    const fmt = displayUnit === 'inch' ? toInch : toMm;
+    const suffix = displayUnit === 'inch' ? ' in' : ' mm';
     const sizeWarn = data.sizeWarning ? '<p class="size-warning">Large file; processing may be slow.</p>' : '';
 
     el.innerHTML = `
@@ -132,10 +176,45 @@ const UI = (function () {
         <dt>Format</dt><dd>${data.format === 'ascii' ? 'ASCII' : 'Binary'}</dd>
         <dt>File size</dt><dd>${formatBytes(data.fileSizeBytes)}</dd>
         <dt>Triangles</dt><dd>${data.triangleCount.toLocaleString()}</dd>
-        <dt>Bounding box (X × Y × Z)</dt><dd>${fmt(bbox.size.x)} × ${fmt(bbox.size.y)} × ${fmt(bbox.size.z)}</dd>
+        <dt>Bounding box (X × Y × Z)</dt><dd>${fmt(bbox.size.x)} × ${fmt(bbox.size.y)} × ${fmt(bbox.size.z)}${suffix}</dd>
       </dl>
       ${sizeWarn}
     `;
+  }
+
+  function updateSizeSanity(bbox, displayUnit) {
+    const el = elements.sizeSanity;
+    if (!el) return;
+
+    if (!bbox) {
+      el.classList.add('hidden');
+      return;
+    }
+
+    const largest_mm = Math.max(bbox.size.x, bbox.size.y, bbox.size.z);
+    const unit = displayUnit || 'mm';
+    const displayValue = unit === 'inch'
+      ? (largest_mm / 25.4).toFixed(3)
+      : largest_mm.toFixed(2);
+    const suffix = unit === 'inch' ? ' in' : ' mm';
+
+    let statusText = '';
+    let statusClass = 'size-sanity-ok';
+    if (largest_mm < 1) {
+      statusText = '⚠ Extremely small — likely a units mismatch. Try ×25.4.';
+      statusClass = 'size-sanity-warn';
+    } else if (largest_mm > 1000) {
+      statusText = '⚠ Extremely large — likely a units mismatch. Try ÷25.4.';
+      statusClass = 'size-sanity-warn';
+    } else {
+      statusText = '✓ Size looks reasonable for 3D printing.';
+    }
+
+    el.innerHTML = `
+      <div class="size-sanity-value">Largest dimension: ${displayValue}${suffix}</div>
+      <div class="size-sanity-status ${statusClass}">${statusText}</div>
+    `;
+    el.classList.remove('hidden');
   }
 
   function enableDownload(enable) {
@@ -145,13 +224,66 @@ const UI = (function () {
   function getCustomFactor() {
     const input = elements.customFactor;
     if (!input) return 1;
-    const v = parseFloat(input.value);
+    const raw = input.value.trim().replace(',', '.');
+    const v = parseFloat(raw);
     return isNaN(v) ? 1 : v;
   }
 
   function setCustomFactor(value) {
     const input = elements.customFactor;
     if (input) input.value = String(value);
+  }
+
+  function updateSuggestionBanner(maxDim) {
+    const banner = elements.suggestionBanner;
+    const text = elements.suggestionText;
+    const applyBtn = elements.btnSuggestionApply;
+    if (!banner || !text || !applyBtn) return;
+
+    if (bannerDismissed) {
+      banner.classList.add('hidden');
+      return;
+    }
+
+    if (maxDim < 5) {
+      text.textContent = 'Model looks very small. If it\'s invisible/tiny in your slicer, try Inch → mm (×25.4).';
+      applyBtn.textContent = 'Apply ×25.4';
+      applyBtn.dataset.action = 'inch-to-mm';
+      banner.classList.remove('hidden');
+    } else if (maxDim > 500) {
+      text.textContent = 'Model looks very large. If it\'s huge in your slicer, try mm → Inch (÷25.4).';
+      applyBtn.textContent = 'Apply ÷25.4';
+      applyBtn.dataset.action = 'mm-to-inch';
+      banner.classList.remove('hidden');
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
+
+  function resetBannerOnLoad() {
+    bannerDismissed = false;
+  }
+
+  function getCenterModel() {
+    const cb = elements.centerModel;
+    return cb ? cb.checked : false;
+  }
+
+  function setCenterModel(checked) {
+    const cb = elements.centerModel;
+    if (cb) cb.checked = !!checked;
+  }
+
+  function getDisplayUnit() {
+    if (elements.unitInch && elements.unitInch.checked) return 'inch';
+    return 'mm';
+  }
+
+  function setDisplayUnit(unit) {
+    if (elements.unitMm && elements.unitInch) {
+      elements.unitMm.checked = (unit === 'mm');
+      elements.unitInch.checked = (unit === 'inch');
+    }
   }
 
   const api = {
@@ -162,9 +294,16 @@ const UI = (function () {
     showCards,
     hideCards,
     renderModelStats,
+    updateSizeSanity,
     enableDownload,
     getCustomFactor,
     setCustomFactor,
+    updateSuggestionBanner,
+    resetBannerOnLoad,
+    getCenterModel,
+    setCenterModel,
+    getDisplayUnit,
+    setDisplayUnit,
     SCALE_INCH_TO_MM,
     SCALE_MM_TO_INCH,
     formatBytes,

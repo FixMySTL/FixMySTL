@@ -1,7 +1,7 @@
 /**
  * main.js — Bootstrap UI and wire events.
- * State: originalVertices (immutable), currentScaleFactor, currentVertices.
- * Scale always computed from originalVertices.
+ * State: originalVertices (immutable), currentScaleFactor, currentVertices,
+ * centerModel, currentBbox. Transform: scale + optional center.
  */
 
 import { Preview } from './preview.js';
@@ -18,17 +18,68 @@ import { Preview } from './preview.js';
     originalVertices: null,
     currentScaleFactor: 1,
     currentVertices: null,
+    currentBbox: null,
     triangleCount: 0,
     format: null,
     fileSizeBytes: 0,
     filename: '',
-    sizeWarning: false
+    sizeWarning: false,
+    centerModel: false,
+    displayUnit: 'mm',
+    showBoundingBox: false
   };
+
+  function applyTransform() {
+    if (!state.originalVertices) return;
+
+    const scaled = GEOMETRY.scaleVertices(state.originalVertices, state.currentScaleFactor);
+    const bbox = GEOMETRY.computeBbox(scaled, state.triangleCount);
+
+    let tx = 0, ty = 0, tz = 0;
+    if (state.centerModel) {
+      const center = GEOMETRY.computeCenter(bbox);
+      tx = -center.x;
+      ty = -center.y;
+      tz = -center.z;
+    }
+
+    state.currentVertices = GEOMETRY.applyTransform(
+      state.originalVertices,
+      state.currentScaleFactor,
+      tx, ty, tz
+    );
+    state.currentBbox = GEOMETRY.computeBbox(state.currentVertices, state.triangleCount);
+  }
+
+  function refreshFromState() {
+    if (!state.originalVertices) return;
+
+    applyTransform();
+    const bbox = state.currentBbox;
+    const maxDim = Math.max(bbox.size.x, bbox.size.y, bbox.size.z, 0);
+
+    UI.renderModelStats({
+      format: state.format,
+      fileSizeBytes: state.fileSizeBytes,
+      triangleCount: state.triangleCount,
+      bbox,
+      sizeWarning: state.sizeWarning,
+      displayUnit: state.displayUnit
+    });
+
+    Preview.updateMeshPositions(state.currentVertices);
+    Preview.fitCameraToBbox(bbox);
+    Preview.updateBoundingBoxAndLabels(bbox, state.displayUnit, state.showBoundingBox);
+    UI.setCustomFactor(state.currentScaleFactor);
+    UI.updateSuggestionBanner(maxDim);
+    UI.updateSizeSanity(bbox, state.displayUnit);
+  }
 
   function loadFile(file) {
     UI.hideMessage();
     UI.hideCards();
     Preview.clear();
+    UI.resetBannerOnLoad();
 
     if (!file || !file.name.toLowerCase().endsWith('.stl')) {
       UI.showMessage('Please select a valid .stl file.', true);
@@ -44,15 +95,35 @@ import { Preview } from './preview.js';
         const parsed = STLParser.parse(arrayBuffer, fileSizeBytes);
         state.originalVertices = parsed.vertices;
         state.currentScaleFactor = 1;
-        state.currentVertices = new Float32Array(parsed.vertices.length);
-        state.currentVertices.set(parsed.vertices);
         state.triangleCount = parsed.triangleCount;
         state.format = parsed.format;
         state.fileSizeBytes = parsed.fileSizeBytes;
         state.filename = file.name;
         state.sizeWarning = parsed.sizeWarning;
+        state.centerModel = false;
+        UI.setCenterModel(false);
 
-        onModelLoaded();
+        applyTransform();
+        const bbox = state.currentBbox;
+        const maxDim = Math.max(bbox.size.x, bbox.size.y, bbox.size.z, 0);
+
+        UI.renderModelStats({
+          format: state.format,
+          fileSizeBytes: state.fileSizeBytes,
+          triangleCount: state.triangleCount,
+          bbox,
+          sizeWarning: state.sizeWarning,
+          displayUnit: state.displayUnit
+        });
+
+        Preview.setMesh(state.currentVertices, state.triangleCount, bbox);
+        Preview.updateBoundingBoxAndLabels(bbox, state.displayUnit, state.showBoundingBox);
+        UI.updateSizeSanity(bbox, state.displayUnit);
+        UI.showCards();
+        UI.enableDownload(true);
+        UI.setCustomFactor(state.currentScaleFactor);
+        UI.updateSuggestionBanner(maxDim);
+        UI.hideMessage();
       } catch (err) {
         UI.showMessage('Failed to parse STL: ' + (err.message || 'Unknown error'), true);
       }
@@ -65,47 +136,51 @@ import { Preview } from './preview.js';
     reader.readAsArrayBuffer(file);
   }
 
-  function onModelLoaded() {
-    const bbox = GEOMETRY.computeBbox(state.currentVertices, state.triangleCount);
-
-    UI.renderModelStats({
-      format: state.format,
-      fileSizeBytes: state.fileSizeBytes,
-      triangleCount: state.triangleCount,
-      bbox,
-      sizeWarning: state.sizeWarning
-    });
-
-    Preview.setMesh(state.currentVertices, state.triangleCount, bbox);
-    UI.showCards();
-    UI.enableDownload(true);
-    UI.setCustomFactor(state.currentScaleFactor);
-    UI.hideMessage();
-  }
-
   function applyScale(factor) {
     if (!state.originalVertices || factor <= 0 || !isFinite(factor)) return;
 
     state.currentScaleFactor = factor;
-    state.currentVertices = GEOMETRY.scaleVertices(state.originalVertices, factor);
-    const bbox = GEOMETRY.computeBbox(state.currentVertices, state.triangleCount);
-
-    UI.renderModelStats({
-      format: state.format,
-      fileSizeBytes: state.fileSizeBytes,
-      triangleCount: state.triangleCount,
-      bbox,
-      sizeWarning: state.sizeWarning
-    });
-
-    Preview.updateMeshPositions(state.currentVertices);
-    Preview.fitCameraToBbox(bbox);
-    UI.setCustomFactor(factor);
+    refreshFromState();
   }
 
   function reset() {
     if (!state.originalVertices) return;
-    applyScale(1);
+    state.currentScaleFactor = 1;
+    UI.setCenterModel(false);
+    state.centerModel = false;
+    refreshFromState();
+  }
+
+  function fitView() {
+    if (!state.currentBbox) return;
+    Preview.fitCameraToBbox(state.currentBbox);
+  }
+
+  function onCenterToggle() {
+    state.centerModel = UI.getCenterModel();
+    refreshFromState();
+  }
+
+  function onUnitChange() {
+    state.displayUnit = UI.getDisplayUnit();
+    if (!state.originalVertices) return;
+    UI.renderModelStats({
+      format: state.format,
+      fileSizeBytes: state.fileSizeBytes,
+      triangleCount: state.triangleCount,
+      bbox: state.currentBbox,
+      sizeWarning: state.sizeWarning,
+      displayUnit: state.displayUnit
+    });
+    Preview.updateBoundingBoxAndLabels(state.currentBbox, state.displayUnit, state.showBoundingBox);
+    UI.updateSizeSanity(state.currentBbox, state.displayUnit);
+  }
+
+  function onBboxToggle() {
+    const cb = UI.elements().bboxToggle;
+    state.showBoundingBox = cb ? cb.checked : false;
+    if (!state.originalVertices) return;
+    Preview.updateBoundingBoxAndLabels(state.currentBbox, state.displayUnit, state.showBoundingBox);
   }
 
   function download() {
@@ -166,8 +241,22 @@ import { Preview } from './preview.js';
       }
     });
 
+    UI.elements().btnSuggestionApply.addEventListener('click', function () {
+      const action = UI.elements().btnSuggestionApply.dataset.action;
+      if (action === 'inch-to-mm') applyScale(UI.SCALE_INCH_TO_MM);
+      else if (action === 'mm-to-inch') applyScale(UI.SCALE_MM_TO_INCH);
+    });
+
     UI.elements().btnReset.addEventListener('click', reset);
+    UI.elements().btnFitView.addEventListener('click', fitView);
     UI.elements().btnDownload.addEventListener('click', download);
+    UI.elements().centerModel.addEventListener('change', onCenterToggle);
+
+    document.querySelectorAll('input[name="display-unit"]').forEach(function (radio) {
+      radio.addEventListener('change', onUnitChange);
+    });
+
+    UI.elements().bboxToggle.addEventListener('change', onBboxToggle);
   }
 
   function init() {
