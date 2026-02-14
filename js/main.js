@@ -6,6 +6,8 @@
 
 import { Preview } from './preview.js';
 
+console.log('FixMySTL assets loaded');
+
 (function () {
   'use strict';
 
