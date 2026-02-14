@@ -5,6 +5,7 @@
  */
 
 import { Preview } from './preview.js';
+import { track, trackOnce } from './analytics.js';
 
 console.log('FixMySTL assets loaded');
 
@@ -29,8 +30,20 @@ console.log('FixMySTL assets loaded');
     centerModel: false,
     displayUnit: 'mm',
     showBoundingBox: false,
-    rotationMatrix: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+    rotationMatrix: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    lastAppliedScaleFactor: null
   };
+
+  function bboxParams(bbox, units) {
+    if (!bbox) return {};
+    const toDisplay = (v) => (units === 'inch' ? (v / 25.4) : v);
+    return {
+      bbox_x: Math.round(toDisplay(bbox.size.x) * 1000) / 1000,
+      bbox_y: Math.round(toDisplay(bbox.size.y) * 1000) / 1000,
+      bbox_z: Math.round(toDisplay(bbox.size.z) * 1000) / 1000,
+      units_display: units || state.displayUnit
+    };
+  }
 
   function applyTransform() {
     if (!state.originalVertices) return;
@@ -101,6 +114,7 @@ console.log('FixMySTL assets loaded');
         state.filename = file.name;
         state.sizeWarning = parsed.sizeWarning;
         state.centerModel = false;
+        state.lastAppliedScaleFactor = null;
         state.rotationMatrix = GEOMETRY.IDENTITY.slice();
         UI.setCenterModel(false);
 
@@ -125,9 +139,17 @@ console.log('FixMySTL assets loaded');
         UI.setCustomFactor(state.currentScaleFactor);
         UI.updateSuggestionBanner(maxDim);
         UI.hideMessage();
-        track('stl_upload', { event_category: 'engagement', event_label: 'STL file uploaded' });
+        const uploadKey = 'stl_' + file.name + '_' + state.fileSizeBytes + '_' + state.triangleCount;
+        const fmt = state.format === 'ascii' || state.format === 'binary' ? state.format : 'unknown';
+        trackOnce(uploadKey, 'stl_upload', {
+          file_size_mb: Math.round((state.fileSizeBytes / (1024 * 1024)) * 1000) / 1000,
+          file_format: fmt,
+          triangles: state.triangleCount,
+          ...bboxParams(bbox, state.displayUnit)
+        });
       } catch (err) {
         UI.showMessage('Failed to parse STL: ' + (err.message || 'Unknown error'), true);
+        track('stl_parse_error', { reason: (err && err.message) || 'unknown' });
       }
     };
 
@@ -138,19 +160,25 @@ console.log('FixMySTL assets loaded');
     reader.readAsArrayBuffer(file);
   }
 
-  function track(name, params) {
-    if (typeof gtag === 'function') gtag('event', name, params);
-  }
-
-  function applyScale(factor) {
+  function applyScale(factor, mode) {
     if (!state.originalVertices || factor <= 0 || !isFinite(factor)) return;
 
+    const factorChanged = state.currentScaleFactor !== factor;
     state.currentScaleFactor = factor;
+    state.lastAppliedScaleFactor = factor;
     refreshFromState();
+    if (factorChanged && mode) {
+      track('scale_apply', {
+        factor: Math.round(factor * 10000) / 10000,
+        mode,
+        units_display: state.displayUnit
+      });
+    }
   }
 
   function reset() {
     if (!state.originalVertices) return;
+    track('reset_click');
     state.currentScaleFactor = 1;
     state.rotationMatrix = GEOMETRY.IDENTITY.slice();
     UI.setCenterModel(false);
@@ -173,17 +201,19 @@ console.log('FixMySTL assets loaded');
 
   function fitView() {
     if (!state.currentBbox) return;
+    track('fit_view_click');
     Preview.fitCameraToBbox(state.currentBbox);
   }
 
   function onCenterToggle() {
-    track('center_model_clicked', { event_category: 'geometry', event_label: 'center_model' });
     state.centerModel = UI.getCenterModel();
+    track('center_toggle', { enabled: state.centerModel });
     refreshFromState();
   }
 
   function onUnitChange() {
     state.displayUnit = UI.getDisplayUnit();
+    track('units_toggle', { units_display: state.displayUnit });
     if (!state.originalVertices) return;
     UI.renderModelStats({
       format: state.format,
@@ -200,13 +230,19 @@ console.log('FixMySTL assets loaded');
   function onBboxToggle() {
     const cb = UI.elements().bboxToggle;
     state.showBoundingBox = cb ? cb.checked : false;
+    track('bbox_toggle', { enabled: state.showBoundingBox, units_display: state.displayUnit });
     if (!state.originalVertices) return;
     Preview.updateBoundingBoxAndLabels(state.currentBbox, state.displayUnit, state.showBoundingBox);
   }
 
   function download() {
     if (!state.currentVertices) return;
-    track('download_corrected_stl', { event_category: 'conversion', event_label: 'download' });
+    const bbox = state.currentBbox;
+    track('download_corrected_stl', {
+      triangles: state.triangleCount,
+      scale_factor_total: Math.round(state.currentScaleFactor * 10000) / 10000,
+      ...bboxParams(bbox, state.displayUnit)
+    });
     STLExporter.exportAndDownload(
       state.currentVertices,
       state.triangleCount,
@@ -247,20 +283,27 @@ console.log('FixMySTL assets loaded');
 
   function setupScaleButtons() {
     UI.elements().btnInchToMm.addEventListener('click', function () {
-      track('scale_inch_to_mm', { event_category: 'scale', event_label: 'inch_to_mm' });
-      applyScale(UI.SCALE_INCH_TO_MM);
+      track('scale_preset_click', {
+        preset: 'inch_to_mm',
+        factor: UI.SCALE_INCH_TO_MM,
+        units_display: state.displayUnit
+      });
+      applyScale(UI.SCALE_INCH_TO_MM, 'preset');
     });
 
     UI.elements().btnMmToInch.addEventListener('click', function () {
-      track('scale_mm_to_inch', { event_category: 'scale', event_label: 'mm_to_inch' });
-      applyScale(UI.SCALE_MM_TO_INCH);
+      track('scale_preset_click', {
+        preset: 'mm_to_inch',
+        factor: UI.SCALE_MM_TO_INCH,
+        units_display: state.displayUnit
+      });
+      applyScale(UI.SCALE_MM_TO_INCH, 'preset');
     });
 
     UI.elements().btnApplyScale.addEventListener('click', function () {
       const factor = UI.getCustomFactor();
       if (factor > 0 && isFinite(factor)) {
-        track('custom_scale_apply', { event_category: 'scale', event_label: 'custom_factor' });
-        applyScale(factor);
+        applyScale(factor, 'custom');
       } else {
         UI.showMessage('Enter a valid positive scale factor.', true);
       }
@@ -268,8 +311,21 @@ console.log('FixMySTL assets loaded');
 
     UI.elements().btnSuggestionApply.addEventListener('click', function () {
       const action = UI.elements().btnSuggestionApply.dataset.action;
-      if (action === 'inch-to-mm') applyScale(UI.SCALE_INCH_TO_MM);
-      else if (action === 'mm-to-inch') applyScale(UI.SCALE_MM_TO_INCH);
+      if (action === 'inch-to-mm') {
+        track('scale_preset_click', {
+          preset: 'inch_to_mm',
+          factor: UI.SCALE_INCH_TO_MM,
+          units_display: state.displayUnit
+        });
+        applyScale(UI.SCALE_INCH_TO_MM, 'preset');
+      } else if (action === 'mm-to-inch') {
+        track('scale_preset_click', {
+          preset: 'mm_to_inch',
+          factor: UI.SCALE_MM_TO_INCH,
+          units_display: state.displayUnit
+        });
+        applyScale(UI.SCALE_MM_TO_INCH, 'preset');
+      }
     });
 
     UI.elements().btnReset.addEventListener('click', reset);

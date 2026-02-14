@@ -542,3 +542,9 @@ body {
   margin: 0 0 14px;
   color: #444;
 }
+
+.seo-section .seo-privacy {
+  font-size: 0.9rem;
+  color: #777;
+  margin-top: 20px;
+}
