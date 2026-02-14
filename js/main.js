@@ -125,6 +125,7 @@ console.log('FixMySTL assets loaded');
         UI.setCustomFactor(state.currentScaleFactor);
         UI.updateSuggestionBanner(maxDim);
         UI.hideMessage();
+        track('stl_upload', { event_category: 'engagement', event_label: 'STL file uploaded' });
       } catch (err) {
         UI.showMessage('Failed to parse STL: ' + (err.message || 'Unknown error'), true);
       }
@@ -135,6 +136,10 @@ console.log('FixMySTL assets loaded');
     };
 
     reader.readAsArrayBuffer(file);
+  }
+
+  function track(name, params) {
+    if (typeof gtag === 'function') gtag('event', name, params);
   }
 
   function applyScale(factor) {
@@ -172,6 +177,7 @@ console.log('FixMySTL assets loaded');
   }
 
   function onCenterToggle() {
+    track('center_model_clicked', { event_category: 'geometry', event_label: 'center_model' });
     state.centerModel = UI.getCenterModel();
     refreshFromState();
   }
@@ -200,6 +206,7 @@ console.log('FixMySTL assets loaded');
 
   function download() {
     if (!state.currentVertices) return;
+    track('download_corrected_stl', { event_category: 'conversion', event_label: 'download' });
     STLExporter.exportAndDownload(
       state.currentVertices,
       state.triangleCount,
@@ -240,16 +247,19 @@ console.log('FixMySTL assets loaded');
 
   function setupScaleButtons() {
     UI.elements().btnInchToMm.addEventListener('click', function () {
+      track('scale_inch_to_mm', { event_category: 'scale', event_label: 'inch_to_mm' });
       applyScale(UI.SCALE_INCH_TO_MM);
     });
 
     UI.elements().btnMmToInch.addEventListener('click', function () {
+      track('scale_mm_to_inch', { event_category: 'scale', event_label: 'mm_to_inch' });
       applyScale(UI.SCALE_MM_TO_INCH);
     });
 
     UI.elements().btnApplyScale.addEventListener('click', function () {
       const factor = UI.getCustomFactor();
       if (factor > 0 && isFinite(factor)) {
+        track('custom_scale_apply', { event_category: 'scale', event_label: 'custom_factor' });
         applyScale(factor);
       } else {
         UI.showMessage('Enter a valid positive scale factor.', true);
