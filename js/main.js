@@ -416,6 +416,7 @@ console.log('FixMySTL assets loaded');
     if (typeof trackOnce === 'function') {
       trackOnce('cam_panel_view', 'cam_panel_view');
     }
+    if (typeof console !== 'undefined') console.log('CAM panel active');
     UI.updatePreSlicerOutputs({
       volumeMm3,
       mass_g: mat.mass_g,

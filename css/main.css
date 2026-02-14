@@ -706,6 +706,12 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.cam-debug {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
 .cam-output-line {
   margin-bottom: 0.2rem;
 }

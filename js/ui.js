@@ -288,15 +288,18 @@ const UI = (function () {
       camOverhang: document.getElementById('cam-overhang')
     };
 
-    elements.camMaterial.addEventListener('change', function () {
-      const isCustom = elements.camMaterial.value === 'custom';
-      elements.camCustomDensity.classList.toggle('hidden', !isCustom);
-    });
-
-    elements.camSellerMode.addEventListener('change', function () {
-      const on = elements.camSellerMode && elements.camSellerMode.checked;
-      elements.camSellerPanel.classList.toggle('hidden', !on);
-    });
+    if (elements.camMaterial) {
+      elements.camMaterial.addEventListener('change', function () {
+        const isCustom = elements.camMaterial.value === 'custom';
+        if (elements.camCustomDensity) elements.camCustomDensity.classList.toggle('hidden', !isCustom);
+      });
+    }
+    if (elements.camSellerMode && elements.camSellerPanel) {
+      elements.camSellerMode.addEventListener('change', function () {
+        const on = elements.camSellerMode && elements.camSellerMode.checked;
+        elements.camSellerPanel.classList.toggle('hidden', !on);
+      });
+    }
 
     elements.suggestionDismiss.addEventListener('click', function () {
       bannerDismissed = true;
@@ -620,6 +623,7 @@ const UI = (function () {
 
     const { mass_g, length_m, cost, time_h, overhang, footprint, suggestedPrice } = data;
     outputsEl.innerHTML = `
+      <div class="cam-debug">CAM: active</div>
       <div class="cam-output-line">Estimated filament: ~${mass_g.toFixed(1)} g</div>
       <div class="cam-output-line">Estimated filament length: ~${length_m.toFixed(2)} m</div>
       <div class="cam-output-line">Estimated material cost: ~$${cost.toFixed(2)}</div>

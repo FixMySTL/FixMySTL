@@ -3,6 +3,8 @@
  * All computations run locally. Estimates are approximate; slicer preview is final.
  */
 
+if (typeof console !== 'undefined') console.log('camTools.js loaded');
+
 export const MATERIALS = [
   { key: 'pla', label: 'PLA', density: 1.24 },
   { key: 'petg', label: 'PETG', density: 1.27 },
