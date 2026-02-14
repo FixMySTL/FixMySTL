@@ -117,7 +117,83 @@ const GEOMETRY = (function () {
     return Math.floor(vertices.length / 9);
   }
 
-  const api = { computeBbox, scaleVertices, computeCenter, translateVertices, applyTransform, getTriangleCount };
+  /** 3x3 rotation matrix (row-major): [m00,m01,m02, m10,m11,m12, m20,m21,m22] */
+  const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+
+  /** 90° rotation matrices (row-major). axis: 'x'|'y'|'z', sign: +1 or -1 */
+  const ROT_90 = {
+    x: {
+      1: [1, 0, 0, 0, 0, -1, 0, 1, 0],
+      '-1': [1, 0, 0, 0, 0, 1, 0, -1, 0]
+    },
+    y: {
+      1: [0, 0, 1, 0, 1, 0, -1, 0, 0],
+      '-1': [0, 0, -1, 0, 1, 0, 1, 0, 0]
+    },
+    z: {
+      1: [0, -1, 0, 1, 0, 0, 0, 0, 1],
+      '-1': [0, 1, 0, -1, 0, 0, 0, 0, 1]
+    }
+  };
+
+  function multiplyRotationMatrices(a, b) {
+    return [
+      a[0] * b[0] + a[1] * b[3] + a[2] * b[6],
+      a[0] * b[1] + a[1] * b[4] + a[2] * b[7],
+      a[0] * b[2] + a[1] * b[5] + a[2] * b[8],
+      a[3] * b[0] + a[4] * b[3] + a[5] * b[6],
+      a[3] * b[1] + a[4] * b[4] + a[5] * b[7],
+      a[3] * b[2] + a[4] * b[5] + a[5] * b[8],
+      a[6] * b[0] + a[7] * b[3] + a[8] * b[6],
+      a[6] * b[1] + a[7] * b[4] + a[8] * b[7],
+      a[6] * b[2] + a[7] * b[5] + a[8] * b[8]
+    ];
+  }
+
+  /**
+   * Rotate vertices about center using 3x3 matrix (row-major).
+   * v' = center + R * (v - center)
+   */
+  function rotateVerticesAboutCenter(vertices, center, matrix) {
+    const len = vertices.length;
+    const out = new Float32Array(len);
+    const cx = center.x;
+    const cy = center.y;
+    const cz = center.z;
+    const m = matrix;
+
+    for (let i = 0; i < len; i += 3) {
+      const x = vertices[i] - cx;
+      const y = vertices[i + 1] - cy;
+      const z = vertices[i + 2] - cz;
+      out[i] = m[0] * x + m[1] * y + m[2] * z + cx;
+      out[i + 1] = m[3] * x + m[4] * y + m[5] * z + cy;
+      out[i + 2] = m[6] * x + m[7] * y + m[8] * z + cz;
+    }
+    return out;
+  }
+
+  /**
+   * Apply 90° rotation about center. axis: 'x'|'y'|'z', sign: 1 or -1.
+   */
+  function rotateVertices90(vertices, axis, sign, center) {
+    const m = ROT_90[axis][String(sign)];
+    return rotateVerticesAboutCenter(vertices, center, m);
+  }
+
+  const api = {
+    computeBbox,
+    scaleVertices,
+    computeCenter,
+    translateVertices,
+    applyTransform,
+    getTriangleCount,
+    IDENTITY,
+    ROT_90,
+    multiplyRotationMatrices,
+    rotateVerticesAboutCenter,
+    rotateVertices90
+  };
   window.GEOMETRY = api;
   return api;
 })();

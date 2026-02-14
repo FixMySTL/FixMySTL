@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Fix STL Scale Online | Correct mm ↔ inch STL Instantly</title>
-  <meta name="description" content="STL too small or too large in Cura? Fix unit mismatch (mm ↔ inch) instantly. Free online STL scale tool with bounding box preview.">
-  <link rel="canonical" href="https://fixmystl.github.io/">
+  <meta name="description" content="STL too small or too large in Cura? Fix mm ↔ inch unit mismatches instantly. Free online STL scale tool with bounding box preview.">
+  <link rel="canonical" href="https://fixmystl.github.io/FixMySTL/">
   <meta property="og:title" content="Fix STL Scale Online | FixMySTL">
   <meta property="og:description" content="Free online STL scale fixer. Instantly correct mm ↔ inch unit mismatches.">
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://fixmystl.github.io/FixMySTL/">
   <link rel="stylesheet" href="css/main.css">
   <script type="importmap">
   {
@@ -21,6 +22,24 @@
 </head>
 <body>
   <div id="app-root"></div>
+
+  <section class="seo-section">
+    <h2>Why Is My STL Too Small in Cura?</h2>
+    <p>
+    If your STL file appears extremely small or unexpectedly large in Cura or another slicer, the most common cause is a unit mismatch between millimeters and inches. STL files do not store unit information. When a model is exported from software like Fusion 360, SolidWorks, or Blender in inches but interpreted as millimeters (or vice versa), the result can be a model that looks tiny or oversized on the print bed.
+    </p>
+    <p>
+    This issue is especially common when sharing STL files between different CAD tools or downloading models from online repositories. A 1-inch object interpreted as 1 millimeter will appear 25.4 times smaller than intended. Likewise, a millimeter-based design interpreted as inches will scale dramatically larger.
+    </p>
+    <p>
+    FixMySTL allows you to quickly correct mm ↔ inch scale mismatches directly in your browser. You can inspect the bounding box dimensions, triangle count, and volume before downloading the corrected STL, ensuring your model prints at the intended size.
+    </p>
+
+    <h2>How to Fix mm vs Inch STL Scale Issues</h2>
+    <p>
+    To correct a unit mismatch, upload your STL file and use the ×25.4 or ÷25.4 conversion options depending on whether your file was exported in inches or millimeters. You can visually confirm the correct size using the bounding box dimensions before downloading the adjusted model.
+    </p>
+  </section>
 
   <script src="js/geometry.js"></script>
   <script src="js/stlParser.js"></script>

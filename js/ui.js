@@ -33,8 +33,18 @@ const UI = (function () {
     const app = createElement('div', 'app');
 
     const header = createElement('header', 'header');
-    header.innerHTML = '<h1>Fix STL Scale Online</h1><p class="tagline">Fix scale. Preview. Download.</p>';
+    header.innerHTML = `
+      <div class="header-content">
+        <h1>Fix STL Scale Online</h1>
+        <p class="tagline">Fix scale. Preview. Download.</p>
+      </div>
+      <button type="button" class="btn btn-bookmark" id="btn-bookmark">Bookmark this tool</button>
+    `;
     app.appendChild(header);
+
+    const bookmarkToast = createElement('div', 'bookmark-toast hidden', '');
+    bookmarkToast.id = 'bookmark-toast';
+    app.appendChild(bookmarkToast);
 
     const dropzone = createElement('div', 'dropzone');
     dropzone.innerHTML = '<p class="dropzone-text">Drag & drop an STL file here</p><p class="dropzone-sub">or</p><button type="button" class="btn btn-primary" id="btn-choose">Choose file</button><input type="file" id="file-input" accept=".stl" style="display:none">';
@@ -67,6 +77,23 @@ const UI = (function () {
     const previewCard = createElement('div', 'card');
     previewCard.innerHTML = '<h2>Preview</h2><div class="preview-container" id="preview-container"></div>';
     cards.appendChild(previewCard);
+
+    const orientationCard = createElement('div', 'card');
+    orientationCard.innerHTML = `
+      <h2>Orientation</h2>
+      <div class="orientation-controls">
+        <div class="orientation-buttons">
+          <button type="button" class="btn btn-orient" id="rot-x-plus">Rotate X +90°</button>
+          <button type="button" class="btn btn-orient" id="rot-x-minus">Rotate X -90°</button>
+          <button type="button" class="btn btn-orient" id="rot-y-plus">Rotate Y +90°</button>
+          <button type="button" class="btn btn-orient" id="rot-y-minus">Rotate Y -90°</button>
+          <button type="button" class="btn btn-orient" id="rot-z-plus">Rotate Z +90°</button>
+          <button type="button" class="btn btn-orient" id="rot-z-minus">Rotate Z -90°</button>
+          <button type="button" class="btn btn-secondary" id="btn-reset-orient">Reset orientation</button>
+        </div>
+      </div>
+    `;
+    cards.appendChild(orientationCard);
 
     const scaleCard = createElement('div', 'card');
     scaleCard.innerHTML = `
@@ -126,7 +153,16 @@ const UI = (function () {
       centerModel: document.getElementById('center-model'),
       unitMm: document.querySelector('input[name="display-unit"][value="mm"]'),
       unitInch: document.querySelector('input[name="display-unit"][value="inch"]'),
-      bboxToggle: document.getElementById('bboxToggle')
+      bboxToggle: document.getElementById('bboxToggle'),
+      btnBookmark: document.getElementById('btn-bookmark'),
+      bookmarkToast: document.getElementById('bookmark-toast'),
+      rotXPlus: document.getElementById('rot-x-plus'),
+      rotXMinus: document.getElementById('rot-x-minus'),
+      rotYPlus: document.getElementById('rot-y-plus'),
+      rotYMinus: document.getElementById('rot-y-minus'),
+      rotZPlus: document.getElementById('rot-z-plus'),
+      rotZMinus: document.getElementById('rot-z-minus'),
+      btnResetOrient: document.getElementById('btn-reset-orient')
     };
 
     elements.suggestionDismiss.addEventListener('click', function () {
@@ -279,6 +315,28 @@ const UI = (function () {
     return 'mm';
   }
 
+  function showBookmarkToast() {
+    const toast = elements.bookmarkToast;
+    if (!toast) return;
+
+    const isMac = /Mac|iPad|iPhone|iPod/i.test(navigator.platform || navigator.userAgent || '');
+    const shortcut = isMac ? '⌘ + D' : 'Ctrl + D';
+    toast.innerHTML = `
+      <p>Press <kbd>${shortcut}</kbd> to bookmark this page.</p>
+      <p class="bookmark-tip">Tip: you can drag the lock icon (left of the URL) to your bookmarks bar.</p>
+      <button type="button" class="bookmark-toast-close" aria-label="Close">×</button>
+    `;
+    toast.classList.remove('hidden');
+
+    const close = function () {
+      toast.classList.add('hidden');
+      if (toast._timeout) clearTimeout(toast._timeout);
+    };
+
+    toast._timeout = setTimeout(close, 6000);
+    toast.querySelector('.bookmark-toast-close').addEventListener('click', close);
+  }
+
   function setDisplayUnit(unit) {
     if (elements.unitMm && elements.unitInch) {
       elements.unitMm.checked = (unit === 'mm');
@@ -304,6 +362,7 @@ const UI = (function () {
     setCenterModel,
     getDisplayUnit,
     setDisplayUnit,
+    showBookmarkToast,
     SCALE_INCH_TO_MM,
     SCALE_MM_TO_INCH,
     formatBytes,

@@ -26,28 +26,26 @@ import { Preview } from './preview.js';
     sizeWarning: false,
     centerModel: false,
     displayUnit: 'mm',
-    showBoundingBox: false
+    showBoundingBox: false,
+    rotationMatrix: [1, 0, 0, 0, 1, 0, 0, 0, 1]
   };
 
   function applyTransform() {
     if (!state.originalVertices) return;
 
     const scaled = GEOMETRY.scaleVertices(state.originalVertices, state.currentScaleFactor);
-    const bbox = GEOMETRY.computeBbox(scaled, state.triangleCount);
+    const bboxScaled = GEOMETRY.computeBbox(scaled, state.triangleCount);
+    const center = GEOMETRY.computeCenter(bboxScaled);
 
-    let tx = 0, ty = 0, tz = 0;
+    let rotated = GEOMETRY.rotateVerticesAboutCenter(scaled, center, state.rotationMatrix);
+
     if (state.centerModel) {
-      const center = GEOMETRY.computeCenter(bbox);
-      tx = -center.x;
-      ty = -center.y;
-      tz = -center.z;
+      const bboxRotated = GEOMETRY.computeBbox(rotated, state.triangleCount);
+      const centerRotated = GEOMETRY.computeCenter(bboxRotated);
+      rotated = GEOMETRY.translateVertices(rotated, -centerRotated.x, -centerRotated.y, -centerRotated.z);
     }
 
-    state.currentVertices = GEOMETRY.applyTransform(
-      state.originalVertices,
-      state.currentScaleFactor,
-      tx, ty, tz
-    );
+    state.currentVertices = rotated;
     state.currentBbox = GEOMETRY.computeBbox(state.currentVertices, state.triangleCount);
   }
 
@@ -101,6 +99,7 @@ import { Preview } from './preview.js';
         state.filename = file.name;
         state.sizeWarning = parsed.sizeWarning;
         state.centerModel = false;
+        state.rotationMatrix = GEOMETRY.IDENTITY.slice();
         UI.setCenterModel(false);
 
         applyTransform();
@@ -146,8 +145,22 @@ import { Preview } from './preview.js';
   function reset() {
     if (!state.originalVertices) return;
     state.currentScaleFactor = 1;
+    state.rotationMatrix = GEOMETRY.IDENTITY.slice();
     UI.setCenterModel(false);
     state.centerModel = false;
+    refreshFromState();
+  }
+
+  function rotate(axis, sign) {
+    if (!state.originalVertices) return;
+    const r = GEOMETRY.ROT_90[axis][String(sign)];
+    state.rotationMatrix = GEOMETRY.multiplyRotationMatrices(r, state.rotationMatrix);
+    refreshFromState();
+  }
+
+  function resetOrientation() {
+    if (!state.originalVertices) return;
+    state.rotationMatrix = GEOMETRY.IDENTITY.slice();
     refreshFromState();
   }
 
@@ -249,6 +262,14 @@ import { Preview } from './preview.js';
 
     UI.elements().btnReset.addEventListener('click', reset);
     UI.elements().btnFitView.addEventListener('click', fitView);
+
+    UI.elements().rotXPlus.addEventListener('click', function () { rotate('x', 1); });
+    UI.elements().rotXMinus.addEventListener('click', function () { rotate('x', -1); });
+    UI.elements().rotYPlus.addEventListener('click', function () { rotate('y', 1); });
+    UI.elements().rotYMinus.addEventListener('click', function () { rotate('y', -1); });
+    UI.elements().rotZPlus.addEventListener('click', function () { rotate('z', 1); });
+    UI.elements().rotZMinus.addEventListener('click', function () { rotate('z', -1); });
+    UI.elements().btnResetOrient.addEventListener('click', resetOrientation);
     UI.elements().btnDownload.addEventListener('click', download);
     UI.elements().centerModel.addEventListener('change', onCenterToggle);
 
@@ -257,6 +278,16 @@ import { Preview } from './preview.js';
     });
 
     UI.elements().bboxToggle.addEventListener('change', onBboxToggle);
+
+    UI.elements().btnBookmark.addEventListener('click', function () {
+      try {
+        if (typeof window.sidebar !== 'undefined' && typeof window.sidebar.addPanel === 'function') {
+          window.sidebar.addPanel('FixMySTL', window.location.href, '');
+          return;
+        }
+      } catch (e) {}
+      UI.showBookmarkToast();
+    });
   }
 
   function init() {
