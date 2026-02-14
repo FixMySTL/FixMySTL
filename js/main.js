@@ -6,6 +6,13 @@
 
 import { Preview } from './preview.js';
 import { track, trackOnce } from './analytics.js';
+import {
+  estimateMaterial,
+  estimateFilamentLength,
+  estimateCost,
+  estimatePrintTime,
+  computeOverhangRisk
+} from './camTools.js';
 
 console.log('FixMySTL assets loaded');
 
@@ -154,6 +161,7 @@ console.log('FixMySTL assets loaded');
       trackOnce(key, 'unit_suggestion_shown', { preset: suggestionPreset });
     }
     UI.updateSizeSanity(bbox, state.displayUnit);
+    recomputePreSlicerEstimates();
   }
 
   function loadFile(file) {
@@ -205,6 +213,7 @@ console.log('FixMySTL assets loaded');
         const modelInfo = computeModelInfo();
         UI.updatePrinterFit(modelInfo?.fit || null);
         UI.updateModelCheck(modelInfo);
+        recomputePreSlicerEstimates();
         UI.showCards();
         UI.enableDownload(true);
         UI.setCustomFactor(state.currentScaleFactor);
@@ -301,6 +310,7 @@ console.log('FixMySTL assets loaded');
     });
     Preview.updateBoundingBoxAndLabels(state.currentBbox, state.displayUnit, state.showBoundingBox);
     UI.updateSizeSanity(state.currentBbox, state.displayUnit);
+    recomputePreSlicerEstimates();
   }
 
   function onBboxToggle() {
@@ -357,6 +367,68 @@ console.log('FixMySTL assets loaded');
     });
   }
 
+  function recomputePreSlicerEstimates() {
+    const inputs = UI.getPreSlicerInputs();
+    let volumeMm3 = null;
+    if (state.currentVertices && state.triangleCount > 0) {
+      volumeMm3 = GEOMETRY.computeVolume(state.currentVertices, state.triangleCount);
+    }
+    if (volumeMm3 == null || volumeMm3 <= 0) {
+      UI.updatePreSlicerOutputs(null);
+      return;
+    }
+    const mat = estimateMaterial(
+      volumeMm3,
+      inputs.density,
+      inputs.infill,
+      inputs.shellMult
+    );
+    const length_m = estimateFilamentLength(mat.effectiveVolMm3, inputs.filamentDia);
+    const cost = estimateCost(mat.mass_g, inputs.pricePerKg);
+    const time_h = estimatePrintTime(mat.effectiveVolMm3, inputs.flow);
+    const overhang = computeOverhangRisk(
+      state.currentVertices,
+      state.triangleCount,
+      inputs.overhangThreshold
+    );
+    overhang.threshold = inputs.overhangThreshold;
+    const bbox = state.currentBbox;
+    const units = state.displayUnit;
+    const toD = (v) => (units === 'inch' ? v / 25.4 : v);
+    let footprint = null;
+    if (bbox) {
+      const x_mm = bbox.size.x;
+      const y_mm = bbox.size.y;
+      const z_mm = bbox.size.z;
+      footprint = {
+        x_mm, y_mm,
+        x_display: toD(x_mm),
+        y_display: toD(y_mm),
+        unitsDisplay: units,
+        hint: (z_mm > Math.max(x_mm, y_mm) * 1.5)
+          ? 'Consider rotating to reduce Z height.' : null
+      };
+    }
+    let suggestedPrice = null;
+    if (inputs.sellerMode) {
+      suggestedPrice = cost * (1 + inputs.markup / 100);
+    }
+    if (typeof trackOnce === 'function') {
+      trackOnce('cam_panel_view', 'cam_panel_view');
+    }
+    UI.updatePreSlicerOutputs({
+      volumeMm3,
+      mass_g: mat.mass_g,
+      length_m,
+      cost,
+      time_h,
+      overhang,
+      footprint,
+      suggestedPrice,
+      sellerMode: inputs.sellerMode
+    });
+  }
+
   function updatePrinterAndCheck() {
     if (!state.originalVertices) return;
     const modelInfo = computeModelInfo();
@@ -365,6 +437,31 @@ console.log('FixMySTL assets loaded');
     if (modelInfo?.fit && typeof track === 'function') {
       track('fit_result', { status: modelInfo.fit.status, printer: UI.getBuildVolume().key });
     }
+  }
+
+  function setupPreSlicer() {
+    const ids = ['cam-material', 'cam-density', 'cam-infill', 'cam-quality', 'cam-filament-dia', 'cam-speed', 'cam-price', 'cam-overhang-thresh', 'cam-seller-mode', 'cam-markup'];
+    const trigger = function (ev) {
+      recomputePreSlicerEstimates();
+      if (typeof track === 'function') {
+        const el = ev?.target;
+        if (el && el.id === 'cam-material') track('material_change', { material: el.value });
+        if (el && el.id === 'cam-infill') {
+          const v = parseInt(el.value, 10) || 15;
+          const bucket = v <= 10 ? 10 : v <= 20 ? 20 : v <= 30 ? 30 : v;
+          track('infill_change', { value: v, bucket });
+        }
+        if (el && el.id === 'cam-seller-mode') track('seller_mode_toggle', { on: el.checked });
+      }
+    };
+    ids.forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('change', trigger);
+        el.addEventListener('input', trigger);
+      }
+    });
+
   }
 
   function setupPrinterFit() {
@@ -469,6 +566,7 @@ console.log('FixMySTL assets loaded');
 
     setupDragDrop();
     setupPrinterFit();
+    setupPreSlicer();
     setupScaleButtons();
 
     window.addEventListener('resize', function () {

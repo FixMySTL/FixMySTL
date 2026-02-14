@@ -170,6 +170,62 @@ const UI = (function () {
     `;
     cards.appendChild(scaleCard);
 
+    const preSlicerCard = createElement('div', 'card');
+    preSlicerCard.innerHTML = `
+      <h2>Pre-Slicer Checks</h2>
+      <p class="pre-slicer-disclaimer">Estimates are approximate; slicer preview is the source of truth.</p>
+      <div class="pre-slicer-inputs">
+        <div class="pre-slicer-row">
+          <label>Material <select id="cam-material" class="cam-select">
+            <option value="pla">PLA</option>
+            <option value="petg">PETG</option>
+            <option value="abs">ABS</option>
+            <option value="tpu">TPU</option>
+            <option value="custom">Custom</option>
+          </select></label>
+          <span class="cam-custom-density hidden" id="cam-custom-density">g/cm³ <input type="number" id="cam-density" value="1.24" min="0.5" max="2" step="0.01"></span>
+        </div>
+        <div class="pre-slicer-row">
+          <label>Infill <input type="number" id="cam-infill" value="15" min="0" max="100" step="5">%</label>
+          <label>Quality <select id="cam-quality" class="cam-select">
+            <option value="draft">Draft</option>
+            <option value="normal" selected>Normal</option>
+            <option value="strong">Strong</option>
+          </select></label>
+        </div>
+        <div class="pre-slicer-row">
+          <label>Filament <select id="cam-filament-dia" class="cam-select">
+            <option value="1.75" selected>1.75 mm</option>
+            <option value="2.85">2.85 mm</option>
+          </select></label>
+          <label>Speed <select id="cam-speed" class="cam-select">
+            <option value="slow">Slow</option>
+            <option value="normal" selected>Normal</option>
+            <option value="fast">Fast</option>
+          </select></label>
+          <label>Price/kg $<input type="number" id="cam-price" value="20" min="0" step="1"></label>
+        </div>
+        <div class="pre-slicer-row">
+          <label>Overhang threshold <select id="cam-overhang-thresh" class="cam-select">
+            <option value="45">45°</option>
+            <option value="60" selected>60°</option>
+            <option value="70">70°</option>
+          </select></label>
+        </div>
+        <div class="pre-slicer-row">
+          <label class="seller-toggle"><input type="checkbox" id="cam-seller-mode"> Seller mode (optional)</label>
+        </div>
+        <div class="pre-slicer-seller hidden" id="cam-seller-panel">
+          <label>Markup <input type="number" id="cam-markup" value="300" min="0" step="10">%</label>
+          <span class="cam-suggested-price" id="cam-suggested-price"></span>
+        </div>
+      </div>
+      <div class="pre-slicer-outputs" id="cam-outputs"></div>
+      <div class="pre-slicer-footprint" id="cam-footprint"></div>
+      <div class="pre-slicer-overhang" id="cam-overhang"></div>
+    `;
+    cards.appendChild(preSlicerCard);
+
     app.appendChild(cards);
     container.appendChild(app);
 
@@ -213,8 +269,34 @@ const UI = (function () {
       rotYMinus: document.getElementById('rot-y-minus'),
       rotZPlus: document.getElementById('rot-z-plus'),
       rotZMinus: document.getElementById('rot-z-minus'),
-      btnResetOrient: document.getElementById('btn-reset-orient')
+      btnResetOrient: document.getElementById('btn-reset-orient'),
+      camMaterial: document.getElementById('cam-material'),
+      camCustomDensity: document.getElementById('cam-custom-density'),
+      camDensity: document.getElementById('cam-density'),
+      camInfill: document.getElementById('cam-infill'),
+      camQuality: document.getElementById('cam-quality'),
+      camFilamentDia: document.getElementById('cam-filament-dia'),
+      camSpeed: document.getElementById('cam-speed'),
+      camPrice: document.getElementById('cam-price'),
+      camOverhangThresh: document.getElementById('cam-overhang-thresh'),
+      camSellerMode: document.getElementById('cam-seller-mode'),
+      camSellerPanel: document.getElementById('cam-seller-panel'),
+      camMarkup: document.getElementById('cam-markup'),
+      camSuggestedPrice: document.getElementById('cam-suggested-price'),
+      camOutputs: document.getElementById('cam-outputs'),
+      camFootprint: document.getElementById('cam-footprint'),
+      camOverhang: document.getElementById('cam-overhang')
     };
+
+    elements.camMaterial.addEventListener('change', function () {
+      const isCustom = elements.camMaterial.value === 'custom';
+      elements.camCustomDensity.classList.toggle('hidden', !isCustom);
+    });
+
+    elements.camSellerMode.addEventListener('change', function () {
+      const on = elements.camSellerMode && elements.camSellerMode.checked;
+      elements.camSellerPanel.classList.toggle('hidden', !on);
+    });
 
     elements.suggestionDismiss.addEventListener('click', function () {
       bannerDismissed = true;
@@ -483,6 +565,89 @@ const UI = (function () {
     }
   }
 
+  function getPreSlicerInputs() {
+    const mats = [
+      { key: 'pla', density: 1.24 },
+      { key: 'petg', density: 1.27 },
+      { key: 'abs', density: 1.04 },
+      { key: 'tpu', density: 1.20 }
+    ];
+    const shells = { draft: 1.05, normal: 1.12, strong: 1.20 };
+    const flows = { slow: 2.5, normal: 5.0, fast: 8.0 };
+    const matKey = elements.camMaterial?.value || 'pla';
+    const density = matKey === 'custom'
+      ? parseFloat(elements.camDensity?.value || 1.24) || 1.24
+      : (mats.find(m => m.key === matKey)?.density || 1.24);
+    const infill = Math.max(0, Math.min(100, parseFloat(elements.camInfill?.value || 15) || 15));
+    const qualityKey = elements.camQuality?.value || 'normal';
+    const shellMult = shells[qualityKey] || 1.12;
+    const filamentDia = parseFloat(elements.camFilamentDia?.value || 1.75) || 1.75;
+    const pricePerKg = parseFloat(elements.camPrice?.value || 20) || 20;
+    const flowBySpeed = { slow: 2.5, normal: 5.0, fast: 8.0 };
+    const flowKey = elements.camSpeed?.value || 'normal';
+    const flow = flowBySpeed[flowKey] || 5.0;
+    const overhangThresh = parseInt(elements.camOverhangThresh?.value || 60, 10) || 60;
+    const markup = parseFloat(elements.camMarkup?.value || 300) || 300;
+    const sellerMode = elements.camSellerMode?.checked || false;
+    return {
+      material: matKey,
+      density,
+      infill,
+      shellMult,
+      filamentDia,
+      pricePerKg,
+      flow,
+      markup,
+      sellerMode,
+      overhangThreshold: overhangThresh
+    };
+  }
+
+  function updatePreSlicerOutputs(data) {
+    const outputsEl = elements.camOutputs;
+    const footprintEl = elements.camFootprint;
+    const overhangEl = elements.camOverhang;
+    const suggestedEl = elements.camSuggestedPrice;
+    if (!outputsEl) return;
+
+    if (!data || data.volumeMm3 == null || data.volumeMm3 <= 0) {
+      outputsEl.innerHTML = '<span class="cam-placeholder">Load an STL to see estimates.</span>';
+      if (footprintEl) footprintEl.textContent = '';
+      if (overhangEl) overhangEl.textContent = '';
+      if (suggestedEl) suggestedEl.textContent = '';
+      return;
+    }
+
+    const { mass_g, length_m, cost, time_h, overhang, footprint, suggestedPrice } = data;
+    outputsEl.innerHTML = `
+      <div class="cam-output-line">Estimated filament: ~${mass_g.toFixed(1)} g</div>
+      <div class="cam-output-line">Estimated filament length: ~${length_m.toFixed(2)} m</div>
+      <div class="cam-output-line">Estimated material cost: ~$${cost.toFixed(2)}</div>
+      <div class="cam-output-line">Rough print time: ~${time_h.toFixed(2)} h <span class="cam-rough">(coarse estimate)</span></div>
+      <div class="cam-output-note">Rough estimates; final depends on slicer settings.</div>
+    `;
+
+    if (footprintEl && footprint) {
+      const u = footprint.unitsDisplay || 'mm';
+      const suf = u === 'inch' ? ' in' : ' mm';
+      const areaCm2 = (footprint.x_mm * footprint.y_mm) / 100;
+      footprintEl.innerHTML = `Bed footprint: ${footprint.x_display.toFixed(2)} × ${footprint.y_display.toFixed(2)}${suf} · ${areaCm2.toFixed(1)} cm²${footprint.hint ? '<br><span class="cam-orient-hint">' + footprint.hint + '</span>' : ''}`;
+    }
+
+    if (overhangEl && overhang) {
+      const bandClass = overhang.band === 'high' ? 'overhang-high' : overhang.band === 'medium' ? 'overhang-medium' : 'overhang-low';
+      overhangEl.innerHTML = `Overhang risk: <span class="${bandClass}">${overhang.band.charAt(0).toUpperCase() + overhang.band.slice(1)}</span> (${overhang.riskPct.toFixed(1)}% of surface &gt; ${overhang.threshold}°)`;
+    }
+
+    if (suggestedEl) {
+      if (data.sellerMode && suggestedPrice != null) {
+        suggestedEl.textContent = 'Suggested price: ~$' + suggestedPrice.toFixed(2) + ' (excl. electricity/time/failures/shipping)';
+      } else {
+        suggestedEl.textContent = '';
+      }
+    }
+  }
+
   const api = {
     init,
     elements: () => elements,
@@ -504,6 +669,8 @@ const UI = (function () {
     setCenterModel,
     getDisplayUnit,
     setDisplayUnit,
+    getPreSlicerInputs,
+    updatePreSlicerOutputs,
     showBookmarkToast,
     SCALE_INCH_TO_MM,
     SCALE_MM_TO_INCH,

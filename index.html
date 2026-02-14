@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fix STL Scale Online | Correct mm ↔ inch STL Instantly</title>
-  <meta name="description" content="STL too small or too large in Cura? Fix mm ↔ inch unit mismatches instantly. Free online STL scale tool with bounding box preview.">
+  <title>FixMySTL – Free Online STL Cost Estimator, Printer Fit & Scale Fix Tool</title>
+  <meta name="description" content="Free online STL pre-slicer toolkit. Estimate filament usage and print cost, check printer fit, detect mm/inch scale issues, and preview overhang risk — all in your browser.">
   <link rel="canonical" href="https://fixmystl.github.io/FixMySTL/">
   <meta property="og:title" content="Fix STL Scale Online | FixMySTL">
   <meta property="og:description" content="Free online STL scale fixer. Instantly correct mm ↔ inch unit mismatches.">
@@ -38,27 +38,48 @@
 <body>
   <div class="page">
     <div class="container">
+      <h1>Free Online STL Pre-Slicer Toolkit</h1>
+      <p class="subtitle">Estimate filament usage and print cost, check printer fit, fix mm/inch scale issues, and preview overhang risk — before opening your slicer.</p>
       <div id="app-root"></div>
 
       <section class="seo-section">
-        <h2>Why Is My STL Too Small in Cura?</h2>
-        <p>
-        If your STL file appears extremely small or unexpectedly large in Cura or another slicer, the most common cause is a unit mismatch between millimeters and inches. STL files do not store unit information. When a model is exported from software like Fusion 360, SolidWorks, or Blender in inches but interpreted as millimeters (or vice versa), the result can be a model that looks tiny or oversized on the print bed.
-        </p>
-        <p>
-        This issue is especially common when sharing STL files between different CAD tools or downloading models from online repositories. A 1-inch object interpreted as 1 millimeter will appear 25.4 times smaller than intended. Likewise, a millimeter-based design interpreted as inches will scale dramatically larger.
-        </p>
-        <p>
-        FixMySTL allows you to quickly correct mm ↔ inch scale mismatches directly in your browser. You can inspect the bounding box dimensions, triangle count, and volume before downloading the corrected STL, ensuring your model prints at the intended size.
-        </p>
+        <details>
+          <summary><strong>How FixMySTL Works (Technical Overview)</strong></summary>
 
-        <h2>How to Fix mm vs Inch STL Scale Issues</h2>
-        <p>
-        To correct a unit mismatch, upload your STL file and use the ×25.4 or ÷25.4 conversion options depending on whether your file was exported in inches or millimeters. You can visually confirm the correct size using the bounding box dimensions before downloading the adjusted model.
-        </p>
-        <p class="seo-privacy">
-        We use anonymous traffic analytics to understand tool usage. No STL files are uploaded; everything runs in your browser.
-        </p>
+          <p>
+            FixMySTL is a browser-based STL pre-slicer toolkit designed to help you evaluate a model before opening Cura, PrusaSlicer, Bambu Studio, or other CAM software.
+            All calculations run locally in your browser — your files are never uploaded.
+          </p>
+
+          <h3>STL Scale & Unit Detection</h3>
+          <p>
+            STL files do not store unit information. This often causes mm/inch mismatches when importing into slicers.
+            FixMySTL detects suspicious dimensions and allows instant conversion between millimeters and inches.
+          </p>
+
+          <h3>Printer Build Volume Check</h3>
+          <p>
+            Quickly verify whether your STL fits common 3D printers such as Ender 3, Prusa MK3, and Bambu models — or enter custom build dimensions.
+            This avoids opening a slicer just to confirm bed compatibility.
+          </p>
+
+          <h3>Filament Usage & Cost Estimation</h3>
+          <p>
+            Estimate filament consumption in grams and meters based on model volume, infill percentage, and material density (PLA, PETG, ABS, TPU).
+            You can also calculate approximate material cost using your filament price per kilogram.
+          </p>
+
+          <h3>Overhang & Print Risk Preview</h3>
+          <p>
+            The tool analyzes triangle normals to estimate potential overhang areas that may require supports.
+            This provides a rough manufacturing risk assessment before slicing.
+          </p>
+
+          <p>
+            These estimates are approximate and intended for quick pre-slicer analysis.
+            Final print time, material usage, and support requirements should always be verified in your slicer.
+          </p>
+        </details>
       </section>
     </div>
   </div>

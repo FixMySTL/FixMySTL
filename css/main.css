@@ -628,33 +628,177 @@ body {
   margin-bottom: 0.25rem;
 }
 
+/* Pre-Slicer Checks */
+.pre-slicer-disclaimer {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+}
+
+.pre-slicer-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.pre-slicer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.pre-slicer-row label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.cam-select {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+}
+
+.pre-slicer-row input[type="number"] {
+  width: 60px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.cam-custom-density.hidden {
+  display: none;
+}
+
+.cam-custom-density input {
+  width: 55px;
+}
+
+.seller-toggle {
+  cursor: pointer;
+}
+
+.pre-slicer-seller {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.pre-slicer-seller.hidden {
+  display: none;
+}
+
+.cam-suggested-price {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-left: 0.5rem;
+}
+
+.pre-slicer-outputs {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin-bottom: 0.75rem;
+}
+
+.cam-output-line {
+  margin-bottom: 0.2rem;
+}
+
+.cam-output-note {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+.cam-placeholder {
+  color: var(--text-muted);
+}
+
+.cam-rough {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.pre-slicer-footprint,
+.pre-slicer-overhang {
+  font-size: 0.9rem;
+  color: var(--text);
+  margin-top: 0.5rem;
+}
+
+.cam-orient-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.overhang-low { color: #2e7d32; font-weight: 500; }
+.overhang-medium { color: #9a7a2e; font-weight: 500; }
+.overhang-high { color: var(--error); font-weight: 500; }
+
+/* Page title & subtitle (single H1) */
+.page .container > h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.app .header .header-content {
+  display: none;
+}
+
+.app .header {
+  justify-content: flex-end;
+}
+
+.subtitle {
+  margin-top: 8px;
+  margin-bottom: 18px;
+  color: #444;
+  line-height: 1.5;
+  font-size: 1rem;
+  max-width: 900px;
+}
+
 /* SEO section */
 .seo-section {
   margin: 48px auto 0;
-  padding: 28px 0 0;
+  padding-top: 24px;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   max-width: 900px;
-  line-height: 1.7;
-  color: #333;
 }
 
-.seo-section h2 {
-  margin: 28px 0 10px;
-  font-size: 1.35rem;
-  letter-spacing: -0.01em;
+.seo-section details {
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.02);
 }
 
-.seo-section h2:first-child {
-  margin-top: 0;
+.seo-section summary {
+  cursor: pointer;
+  user-select: none;
+  font-size: 1rem;
+  outline: none;
+}
+
+.seo-section details[open] summary {
+  margin-bottom: 12px;
+}
+
+.seo-section h3 {
+  margin: 18px 0 8px;
+  font-size: 1.05rem;
 }
 
 .seo-section p {
-  margin: 0 0 14px;
+  margin: 0 0 12px;
   color: #444;
-}
-
-.seo-section .seo-privacy {
-  font-size: 0.9rem;
-  color: #777;
-  margin-top: 20px;
+  line-height: 1.7;
 }
