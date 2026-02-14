@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FixMySTL — Fix STL scale in your browser</title>
+  <link rel="stylesheet" href="css/main.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app-root"></div>
+
+  <script src="js/geometry.js"></script>
+  <script src="js/stlParser.js"></script>
+  <script src="js/stlExporter.js"></script>
+  <script src="js/ui.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
