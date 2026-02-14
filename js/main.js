@@ -45,6 +45,66 @@ console.log('FixMySTL assets loaded');
     };
   }
 
+  function computeFit(bboxMm, build) {
+    if (!bboxMm || !build) return null;
+    const dx = bboxMm.x; const dy = bboxMm.y; const dz = bboxMm.z;
+    const bx = build.x; const by = build.y; const bz = build.z;
+    const details = [];
+    let exceeds = false;
+    let near = false;
+    if (dx > bx) { exceeds = true; details.push('Exceeds X by ' + Math.round((dx - bx) * 10) / 10 + ' mm'); }
+    else if (dx >= 0.95 * bx) near = true;
+    if (dy > by) { exceeds = true; details.push('Exceeds Y by ' + Math.round((dy - by) * 10) / 10 + ' mm'); }
+    else if (dy >= 0.95 * by) near = true;
+    if (dz > bz) { exceeds = true; details.push('Exceeds Z by ' + Math.round((dz - bz) * 10) / 10 + ' mm'); }
+    else if (dz >= 0.95 * bz) near = true;
+    return {
+      status: exceeds ? 'exceed' : (near ? 'near' : 'fit'),
+      details
+    };
+  }
+
+  function computeModelInfo() {
+    if (!state.currentBbox) return null;
+    const bbox = state.currentBbox;
+    const units = state.displayUnit;
+    const toDisplay = (v) => (units === 'inch' ? v / 25.4 : v);
+    const bboxMm = { x: bbox.size.x, y: bbox.size.y, z: bbox.size.z };
+    const bboxInDisplay = {
+      x: Math.round(toDisplay(bbox.size.x) * 1000) / 1000,
+      y: Math.round(toDisplay(bbox.size.y) * 1000) / 1000,
+      z: Math.round(toDisplay(bbox.size.z) * 1000) / 1000
+    };
+    const build = UI.getBuildVolume();
+    const fit = computeFit(bboxMm, build);
+    const maxDim = Math.max(bboxMm.x, bboxMm.y, bboxMm.z);
+    const warnings = [];
+    if (maxDim < 5) warnings.push('Model is very small (< 5 mm max dimension).');
+    if (fit && fit.status === 'exceed') {
+      warnings.push('Model exceeds build volume on selected printer.');
+    }
+    if (state.triangleCount > 1000000) {
+      warnings.push('High triangle count (> 1,000,000) may slow slicers.');
+    }
+    if (state.triangleCount > 0 && state.triangleCount < 50) {
+      warnings.push('Extremely low triangle count (< 50) may indicate a broken export.');
+    }
+    let volume = null;
+    if (state.currentVertices && GEOMETRY.computeVolume) {
+      volume = GEOMETRY.computeVolume(state.currentVertices, state.triangleCount);
+    }
+    return {
+      triangles: state.triangleCount,
+      bbox: bboxMm,
+      bboxInDisplayUnits: bboxInDisplay,
+      volume,
+      unitsDisplay: units,
+      scaleFactorTotal: state.currentScaleFactor,
+      warnings,
+      fit
+    };
+  }
+
   function applyTransform() {
     if (!state.originalVertices) return;
 
@@ -80,11 +140,19 @@ console.log('FixMySTL assets loaded');
       displayUnit: state.displayUnit
     });
 
+    const modelInfo = computeModelInfo();
+    UI.updatePrinterFit(modelInfo?.fit || null);
+    UI.updateModelCheck(modelInfo);
+
     Preview.updateMeshPositions(state.currentVertices);
     Preview.fitCameraToBbox(bbox);
     Preview.updateBoundingBoxAndLabels(bbox, state.displayUnit, state.showBoundingBox);
     UI.setCustomFactor(state.currentScaleFactor);
-    UI.updateSuggestionBanner(maxDim);
+    const suggestionPreset = UI.updateSuggestionBanner(maxDim);
+    if (suggestionPreset && typeof trackOnce === 'function') {
+      const key = 'unit_suggestion_shown_' + state.filename + '_' + state.triangleCount;
+      trackOnce(key, 'unit_suggestion_shown', { preset: suggestionPreset });
+    }
     UI.updateSizeSanity(bbox, state.displayUnit);
   }
 
@@ -134,10 +202,16 @@ console.log('FixMySTL assets loaded');
         Preview.setMesh(state.currentVertices, state.triangleCount, bbox);
         Preview.updateBoundingBoxAndLabels(bbox, state.displayUnit, state.showBoundingBox);
         UI.updateSizeSanity(bbox, state.displayUnit);
+        const modelInfo = computeModelInfo();
+        UI.updatePrinterFit(modelInfo?.fit || null);
+        UI.updateModelCheck(modelInfo);
         UI.showCards();
         UI.enableDownload(true);
         UI.setCustomFactor(state.currentScaleFactor);
-        UI.updateSuggestionBanner(maxDim);
+        const suggestionPreset = UI.updateSuggestionBanner(maxDim);
+        if (suggestionPreset && typeof trackOnce === 'function') {
+          trackOnce('unit_suggestion_shown_' + file.name + '_' + state.fileSizeBytes + '_' + state.triangleCount, 'unit_suggestion_shown', { preset: suggestionPreset });
+        }
         UI.hideMessage();
         const uploadKey = 'stl_' + file.name + '_' + state.fileSizeBytes + '_' + state.triangleCount;
         const fmt = state.format === 'ascii' || state.format === 'binary' ? state.format : 'unknown';
@@ -215,6 +289,8 @@ console.log('FixMySTL assets loaded');
     state.displayUnit = UI.getDisplayUnit();
     track('units_toggle', { units_display: state.displayUnit });
     if (!state.originalVertices) return;
+    const modelInfo = computeModelInfo();
+    UI.updateModelCheck(modelInfo);
     UI.renderModelStats({
       format: state.format,
       fileSizeBytes: state.fileSizeBytes,
@@ -281,6 +357,33 @@ console.log('FixMySTL assets loaded');
     });
   }
 
+  function updatePrinterAndCheck() {
+    if (!state.originalVertices) return;
+    const modelInfo = computeModelInfo();
+    UI.updatePrinterFit(modelInfo?.fit || null);
+    UI.updateModelCheck(modelInfo);
+    if (modelInfo?.fit && typeof track === 'function') {
+      track('fit_result', { status: modelInfo.fit.status, printer: UI.getBuildVolume().key });
+    }
+  }
+
+  function setupPrinterFit() {
+    const sel = UI.elements().printerSelect;
+    const customInputs = [UI.elements().buildX, UI.elements().buildY, UI.elements().buildZ];
+    if (!sel) return;
+
+    function onPrinterChange() {
+      const build = UI.getBuildVolume();
+      if (typeof track === 'function') track('printer_select', { printer: build.key });
+      updatePrinterAndCheck();
+    }
+
+    sel.addEventListener('change', onPrinterChange);
+    customInputs.forEach(function (inp) {
+      if (inp) inp.addEventListener('input', onPrinterChange);
+    });
+  }
+
   function setupScaleButtons() {
     UI.elements().btnInchToMm.addEventListener('click', function () {
       track('scale_preset_click', {
@@ -312,6 +415,7 @@ console.log('FixMySTL assets loaded');
     UI.elements().btnSuggestionApply.addEventListener('click', function () {
       const action = UI.elements().btnSuggestionApply.dataset.action;
       if (action === 'inch-to-mm') {
+        track('unit_suggestion_action', { preset: 'inch_to_mm' });
         track('scale_preset_click', {
           preset: 'inch_to_mm',
           factor: UI.SCALE_INCH_TO_MM,
@@ -319,6 +423,7 @@ console.log('FixMySTL assets loaded');
         });
         applyScale(UI.SCALE_INCH_TO_MM, 'preset');
       } else if (action === 'mm-to-inch') {
+        track('unit_suggestion_action', { preset: 'mm_to_inch' });
         track('scale_preset_click', {
           preset: 'mm_to_inch',
           factor: UI.SCALE_MM_TO_INCH,
@@ -363,6 +468,7 @@ console.log('FixMySTL assets loaded');
     Preview.init(UI.elements().previewContainer);
 
     setupDragDrop();
+    setupPrinterFit();
     setupScaleButtons();
 
     window.addEventListener('resize', function () {

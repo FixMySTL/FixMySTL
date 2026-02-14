@@ -9,8 +9,17 @@ const UI = (function () {
   const SCALE_INCH_TO_MM = 25.4;
   const SCALE_MM_TO_INCH = 1 / 25.4;
 
+  const PRINTERS = [
+    { key: 'ender3', label: 'Ender 3', x: 220, y: 220, z: 250 },
+    { key: 'prusa_mk3', label: 'Prusa MK3', x: 250, y: 210, z: 210 },
+    { key: 'bambu_p1p', label: 'Bambu P1P/X1', x: 256, y: 256, z: 256 },
+    { key: 'bambu_a1mini', label: 'Bambu A1 mini', x: 180, y: 180, z: 180 },
+    { key: 'custom', label: 'Custom…', x: 220, y: 220, z: 250, custom: true }
+  ];
+
   let elements = {};
   let bannerDismissed = false;
+  let unitSuggestionDismissed = false;
 
   function formatBytes(bytes) {
     if (bytes < 1024) return bytes + ' B';
@@ -74,6 +83,40 @@ const UI = (function () {
     `;
     cards.appendChild(modelCard);
 
+    const printerFitCard = createElement('div', 'card');
+    printerFitCard.innerHTML = `
+      <h2>Printer Fit</h2>
+      <div class="printer-fit-controls">
+        <label class="printer-select-label">Select printer:</label>
+        <select id="printer-select" class="printer-select">
+          ${PRINTERS.filter(p => !p.custom).map(p =>
+            `<option value="${p.key}">${p.label} (${p.x}×${p.y}×${p.z} mm)</option>`
+          ).join('')}
+          <option value="custom">Custom…</option>
+        </select>
+        <div class="printer-custom hidden" id="printer-custom">
+          <div class="printer-custom-inputs">
+            <label>X <input type="number" id="build-x" value="220" min="1" step="1"></label>
+            <label>Y <input type="number" id="build-y" value="220" min="1" step="1"></label>
+            <label>Z <input type="number" id="build-z" value="250" min="1" step="1"></label>
+            <span class="printer-custom-unit">mm</span>
+          </div>
+        </div>
+        <div class="fit-result" id="fit-result"></div>
+      </div>
+    `;
+    cards.appendChild(printerFitCard);
+
+    const modelCheckCard = createElement('div', 'card');
+    modelCheckCard.innerHTML = `
+      <h2>Model Check</h2>
+      <div class="model-check-panel" id="model-check-panel">
+        <div class="model-check-stats" id="model-check-stats"></div>
+        <ul class="model-check-warnings hidden" id="model-check-warnings"></ul>
+      </div>
+    `;
+    cards.appendChild(modelCheckCard);
+
     const previewCard = createElement('div', 'card');
     previewCard.innerHTML = '<h2>Preview</h2><div class="preview-container" id="preview-container"></div>';
     cards.appendChild(previewCard);
@@ -136,6 +179,14 @@ const UI = (function () {
       cards,
       modelStats: document.getElementById('model-stats'),
       sizeSanity: document.getElementById('size-sanity'),
+      printerSelect: document.getElementById('printer-select'),
+      printerCustom: document.getElementById('printer-custom'),
+      buildX: document.getElementById('build-x'),
+      buildY: document.getElementById('build-y'),
+      buildZ: document.getElementById('build-z'),
+      fitResult: document.getElementById('fit-result'),
+      modelCheckStats: document.getElementById('model-check-stats'),
+      modelCheckWarnings: document.getElementById('model-check-warnings'),
       previewContainer: document.getElementById('preview-container'),
       btnChoose: document.getElementById('btn-choose'),
       fileInput: document.getElementById('file-input'),
@@ -167,7 +218,13 @@ const UI = (function () {
 
     elements.suggestionDismiss.addEventListener('click', function () {
       bannerDismissed = true;
+      unitSuggestionDismissed = true;
       elements.suggestionBanner.classList.add('hidden');
+    });
+
+    elements.printerSelect.addEventListener('change', function () {
+      const isCustom = elements.printerSelect.value === 'custom';
+      elements.printerCustom.classList.toggle('hidden', !isCustom);
     });
 
     return elements;
@@ -276,28 +333,110 @@ const UI = (function () {
     const applyBtn = elements.btnSuggestionApply;
     if (!banner || !text || !applyBtn) return;
 
-    if (bannerDismissed) {
+    if (bannerDismissed || unitSuggestionDismissed) {
       banner.classList.add('hidden');
       return;
     }
 
-    if (maxDim < 5) {
-      text.textContent = 'Model looks very small. If it\'s invisible/tiny in your slicer, try Inch → mm (×25.4).';
+    const suspicious = maxDim < 2 || maxDim > 2000;
+    const maxIfInches = maxDim * 25.4;
+    const maxIfMm = maxDim / 25.4;
+    const inRange = (v) => v >= 10 && v <= 400;
+
+    let show = false;
+    let preset = null;
+    if (suspicious && inRange(maxIfInches)) {
+      text.textContent = 'This model\'s size looks unusual. It may be an inch/mm mismatch. Try Inch → mm (×25.4).';
       applyBtn.textContent = 'Apply ×25.4';
       applyBtn.dataset.action = 'inch-to-mm';
-      banner.classList.remove('hidden');
-    } else if (maxDim > 500) {
-      text.textContent = 'Model looks very large. If it\'s huge in your slicer, try mm → Inch (÷25.4).';
+      show = true;
+      preset = 'inch_to_mm';
+    } else if (suspicious && inRange(maxIfMm)) {
+      text.textContent = 'This model\'s size looks unusual. It may be an inch/mm mismatch. Try mm → Inch (÷25.4).';
       applyBtn.textContent = 'Apply ÷25.4';
       applyBtn.dataset.action = 'mm-to-inch';
-      banner.classList.remove('hidden');
-    } else {
-      banner.classList.add('hidden');
+      show = true;
+      preset = 'mm_to_inch';
     }
+    banner.classList.toggle('hidden', !show);
+    return show ? preset : null;
   }
 
   function resetBannerOnLoad() {
     bannerDismissed = false;
+    unitSuggestionDismissed = false;
+  }
+
+  function getBuildVolume() {
+    const sel = elements.printerSelect;
+    if (!sel) return { key: 'ender3', x: 220, y: 220, z: 250 };
+    const key = sel.value;
+    if (key === 'custom') {
+      const x = Math.max(1, parseInt(elements.buildX?.value || 220, 10) || 220);
+      const y = Math.max(1, parseInt(elements.buildY?.value || 220, 10) || 220);
+      const z = Math.max(1, parseInt(elements.buildZ?.value || 250, 10) || 250);
+      return { key: 'custom', x, y, z };
+    }
+    const p = PRINTERS.find(pr => pr.key === key) || PRINTERS[0];
+    return { key: p.key, x: p.x, y: p.y, z: p.z };
+  }
+
+  function updatePrinterFit(fit) {
+    const el = elements.fitResult;
+    if (!el) return;
+    if (!fit) {
+      el.textContent = '';
+      el.className = 'fit-result';
+      return;
+    }
+    const status = fit.status;
+    const details = fit.details || [];
+    el.className = 'fit-result fit-' + status;
+    if (status === 'fit') {
+      el.innerHTML = 'Fit: <span class="fit-ok">✓ Fits</span>';
+    } else if (status === 'near') {
+      el.innerHTML = 'Fit: <span class="fit-near">⚠ Near limit</span>' +
+        (details.length ? '<br><span class="fit-details">' + details.join(' ') + '</span>' : '');
+    } else {
+      el.innerHTML = 'Fit: <span class="fit-exceed">✗ Exceeds</span>' +
+        (details.length ? '<br><span class="fit-details">' + details.join(' ') + '</span>' : '');
+    }
+  }
+
+  function updateModelCheck(modelInfo) {
+    const statsEl = elements.modelCheckStats;
+    const warningsEl = elements.modelCheckWarnings;
+    if (!statsEl || !warningsEl) return;
+
+    if (!modelInfo) {
+      statsEl.textContent = 'Load an STL to see model check.';
+      warningsEl.classList.add('hidden');
+      warningsEl.innerHTML = '';
+      return;
+    }
+
+    const u = modelInfo.unitsDisplay || 'mm';
+    const suffix = u === 'inch' ? ' in' : ' mm';
+    const fmt = (v) => (v != null ? (u === 'inch' ? (v / 25.4).toFixed(3) : Number(v).toFixed(2)) : '—');
+    const b = modelInfo.bboxInDisplayUnits || (modelInfo.bbox ? { x: modelInfo.bbox.x, y: modelInfo.bbox.y, z: modelInfo.bbox.z } : null);
+    const volStr = modelInfo.volume != null ? (modelInfo.volume / 1000).toFixed(2) + ' cm³' : '—';
+
+    statsEl.innerHTML = `
+      <dl class="stat-list model-check-list">
+        <dt>Dimensions (X × Y × Z)</dt><dd>${fmt(b?.x)} × ${fmt(b?.y)} × ${fmt(b?.z)}${suffix}</dd>
+        <dt>Triangles</dt><dd>${(modelInfo.triangles || 0).toLocaleString()}</dd>
+        <dt>Volume</dt><dd>${volStr}</dd>
+      </dl>
+    `;
+
+    const warnings = modelInfo.warnings || [];
+    if (warnings.length === 0) {
+      warningsEl.classList.add('hidden');
+      warningsEl.innerHTML = '';
+    } else {
+      warningsEl.classList.remove('hidden');
+      warningsEl.innerHTML = warnings.map(w => '<li>' + w + '</li>').join('');
+    }
   }
 
   function getCenterModel() {
@@ -358,6 +497,9 @@ const UI = (function () {
     setCustomFactor,
     updateSuggestionBanner,
     resetBannerOnLoad,
+    getBuildVolume,
+    updatePrinterFit,
+    updateModelCheck,
     getCenterModel,
     setCenterModel,
     getDisplayUnit,
@@ -365,6 +507,7 @@ const UI = (function () {
     showBookmarkToast,
     SCALE_INCH_TO_MM,
     SCALE_MM_TO_INCH,
+    PRINTERS,
     formatBytes,
     formatDim
   };

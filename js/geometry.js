@@ -117,6 +117,30 @@ const GEOMETRY = (function () {
     return Math.floor(vertices.length / 9);
   }
 
+  /**
+   * Signed tetrahedron volume: (1/6) * dot(v1, cross(v2-v1, v3-v1)).
+   * Sum over all triangles for approximate mesh volume (mm³).
+   * @param {Float32Array} vertices - 9 floats per triangle
+   * @param {number} triCount
+   * @returns {number} volume in cubic units (mm³ if coords in mm)
+   */
+  function computeVolume(vertices, triCount) {
+    let vol = 0;
+    for (let i = 0; i < triCount; i++) {
+      const o = i * 9;
+      const v1x = vertices[o]; const v1y = vertices[o + 1]; const v1z = vertices[o + 2];
+      const v2x = vertices[o + 3]; const v2y = vertices[o + 4]; const v2z = vertices[o + 5];
+      const v3x = vertices[o + 6]; const v3y = vertices[o + 7]; const v3z = vertices[o + 8];
+      const ax = v2x - v1x; const ay = v2y - v1y; const az = v2z - v1z;
+      const bx = v3x - v1x; const by = v3y - v1y; const bz = v3z - v1z;
+      const cx = ay * bz - az * by;
+      const cy = az * bx - ax * bz;
+      const cz = ax * by - ay * bx;
+      vol += v1x * cx + v1y * cy + v1z * cz;
+    }
+    return Math.abs(vol) / 6;
+  }
+
   /** 3x3 rotation matrix (row-major): [m00,m01,m02, m10,m11,m12, m20,m21,m22] */
   const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 
@@ -183,6 +207,7 @@ const GEOMETRY = (function () {
 
   const api = {
     computeBbox,
+    computeVolume,
     scaleVertices,
     computeCenter,
     translateVertices,
