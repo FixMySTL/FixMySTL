@@ -18,14 +18,6 @@
     }
   </script>
   <link rel="stylesheet" href="css/main.css">
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-    }
-  }
-  </script>
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-0LXJ46C0SS"></script>
   <script>
@@ -33,8 +25,14 @@
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
     gtag('config', 'G-0LXJ46C0SS');
-    gtag('event', 'page_view_debug', { debug_mode: true });
-    console.log("GA tag loaded: G-0LXJ46C0SS");
+  </script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
   </script>
 </head>
 <body>
