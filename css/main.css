@@ -29,6 +29,15 @@ body {
   min-height: 100vh;
 }
 
+.page {
+  padding: 24px 0 64px;
+}
+
+.container {
+  width: min(1100px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
 .app {
   max-width: 900px;
   margin: 0 auto;
@@ -511,16 +520,18 @@ body {
 
 /* SEO section */
 .seo-section {
+  margin: 48px auto 0;
+  padding: 28px 0 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
   max-width: 900px;
-  margin: 60px auto;
-  padding: 0 20px;
-  line-height: 1.6;
-  color: #444;
+  line-height: 1.7;
+  color: #333;
 }
 
 .seo-section h2 {
-  margin-top: 40px;
-  font-size: 1.4rem;
+  margin: 28px 0 10px;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
 }
 
 .seo-section h2:first-child {
@@ -528,5 +539,6 @@ body {
 }
 
 .seo-section p {
-  margin: 0 0 1rem;
+  margin: 0 0 14px;
+  color: #444;
 }
